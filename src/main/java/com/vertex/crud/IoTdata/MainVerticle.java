@@ -39,6 +39,24 @@ public class MainVerticle extends AbstractVerticle {
         router.put("/api/update/:id").handler(this::updateData);
         router.delete("/api/delete/:id").handler(this::deleteData);
         router.delete("/api/deleteAll").handler(this::deleteAllData);
+        
+        // Deploy Component1Verticle
+        vertx.deployVerticle(new Component1Verticle(), ar -> {
+            if (ar.succeeded()) {
+                System.out.println("Component1Verticle deployed successfully");
+            } else {
+                ar.cause().printStackTrace();
+            }
+        });
+
+        // Deploy Component2Verticle
+        vertx.deployVerticle(new Component2Verticle(), ar -> {
+            if (ar.succeeded()) {
+                System.out.println("Component2Verticle deployed successfully");
+            } else {
+                ar.cause().printStackTrace();
+            }
+        });
 
         vertx.createHttpServer().requestHandler(router).listen(8800, http -> {
             if (http.succeeded()) {
@@ -51,6 +69,8 @@ public class MainVerticle extends AbstractVerticle {
             }
         });
     }
+    
+    
     
 
     private void login(RoutingContext context) {
