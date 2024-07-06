@@ -12,6 +12,7 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
+//import io.vertx.pgclient.PgSslMode;
 
 public class DatabaseService {
 
@@ -24,6 +25,8 @@ public class DatabaseService {
                 .setDatabase("testDB")
                 .setUser("postgres")
                 .setPassword("codingdnn8");
+//                .setSsl(false);
+//        		.setSslMode(PgSslMode.DISABLE);
 
         PoolOptions poolOptions = new PoolOptions().setMaxSize(5);
 
