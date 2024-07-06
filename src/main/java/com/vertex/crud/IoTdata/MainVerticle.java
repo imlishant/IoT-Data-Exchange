@@ -1,24 +1,21 @@
 package com.vertex.crud.IoTdata;
 
-
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class MainVerticle extends AbstractVerticle {
 
-    private Map<Integer, IoTData> dataStore = new HashMap<>();
+    private DatabaseService databaseService;
 
     @Override
     public void start(Promise<Void> startPromise) {
+        databaseService = new DatabaseService(vertx);
+
         Router router = Router.router(vertx);
 
         router.route().handler(BodyHandler.create());
@@ -29,12 +26,12 @@ public class MainVerticle extends AbstractVerticle {
         router.delete("/delete/:id").handler(this::deleteData);
         router.delete("/deleteAll").handler(this::deleteAllData);
 
-
-        vertx.createHttpServer().requestHandler(router).listen(8888, http -> {
+        vertx.createHttpServer().requestHandler(router).listen(8821, http -> {
             if (http.succeeded()) {
                 startPromise.complete();
-                System.out.println("HTTP server started on port 8888");
+                System.out.println("HTTP server started on port 8821");
             } else {
+                System.out.println("HTTP server NOT started.");
                 startPromise.fail(http.cause());
             }
         });
@@ -46,14 +43,13 @@ public class MainVerticle extends AbstractVerticle {
             int id = json.getInteger("id");
             String value = json.getString("value");
 
-            if (dataStore.containsKey(id)) {
-                context.response().setStatusCode(400).end("ID already exists");
-                return;
-            }
-
-            IoTData data = new IoTData(id, value);
-            dataStore.put(id, data);
-            context.response().setStatusCode(201).end(new JsonObject().put("id", id).encode());
+            databaseService.createData(id, value).onComplete(ar -> {
+                if (ar.succeeded()) {
+                    context.response().setStatusCode(201).end("Data created");
+                } else {
+                    context.response().setStatusCode(500).end(ar.cause().getMessage());
+                }
+            });
         } catch (Exception e) {
             context.response().setStatusCode(500).end(e.getMessage());
         }
@@ -62,48 +58,51 @@ public class MainVerticle extends AbstractVerticle {
     private void getDataById(RoutingContext context) {
         try {
             int id = Integer.parseInt(context.pathParam("id"));
-            IoTData data = dataStore.get(id);
-            if (data != null) {
-                context.response().setStatusCode(200).end(new JsonObject().put("id", data.getId()).put("value", data.getData()).encode());
-            } else {
-                context.response().setStatusCode(404).end("Data not found");
-            }
+            databaseService.getDataById(id).onComplete(ar -> {
+                if (ar.succeeded()) {
+                    context.response().setStatusCode(200).end(ar.result().encode());
+                } else {
+                    context.response().setStatusCode(404).end(ar.cause().getMessage());
+                }
+            });
         } catch (Exception e) {
             context.response().setStatusCode(500).end(e.getMessage());
         }
     }
 
     private void getAllData(RoutingContext context) {
+
+//    	System.out.println("issue");
+//    	/*
         try {
-            if (dataStore.isEmpty()) {
-                context.response().setStatusCode(404).end("No data available");
-            } else {
-                JsonArray dataArray = dataStore.entrySet()
-                        .stream()
-                        .map(entry -> new JsonObject()
-                            .put("id", entry.getKey())
-                            .put("value", entry.getValue().getData()))
-                        .collect(JsonArray::new, JsonArray::add, JsonArray::addAll);
-                
-                context.response().setStatusCode(200).end(dataArray.encode());
-            }
+            databaseService.getAllData().onComplete(ar -> {
+                if (ar.succeeded()) {
+                	System.out.println("issue");
+                    context.response().setStatusCode(200).end(ar.result().encode());
+                } else {
+                    context.response().setStatusCode(500).end(ar.cause().getMessage());
+                }
+            });
         } catch (Exception e) {
             context.response().setStatusCode(500).end(e.getMessage());
         }
+//        */
+    	
     }
-
 
     private void updateData(RoutingContext context) {
         try {
             int id = Integer.parseInt(context.pathParam("id"));
-            IoTData data = dataStore.get(id);
-            if (data != null) {
-                JsonObject json = context.getBodyAsJson();
-                data.setData(json.getString("value"));
-                context.response().setStatusCode(204).end();
-            } else {
-                context.response().setStatusCode(404).end("Data not found");
-            }
+            JsonObject json = context.getBodyAsJson();
+            String value = json.getString("value");
+
+            databaseService.updateData(id, value).onComplete(ar -> {
+                if (ar.succeeded()) {
+                    context.response().setStatusCode(200).end("Data updated");
+                } else {
+                    context.response().setStatusCode(404).end(ar.cause().getMessage());
+                }
+            });
         } catch (Exception e) {
             context.response().setStatusCode(500).end(e.getMessage());
         }
@@ -112,30 +111,32 @@ public class MainVerticle extends AbstractVerticle {
     private void deleteData(RoutingContext context) {
         try {
             int id = Integer.parseInt(context.pathParam("id"));
-            IoTData data = dataStore.remove(id);
-            if (data != null) {
-                context.response().setStatusCode(204).end();
-            } else {
-                context.response().setStatusCode(404).end("Data not found");
-            }
-        } catch (Exception e) {
-            context.response().setStatusCode(500).end(e.getMessage());
-        }
-    }
-    
-    private void deleteAllData(RoutingContext context) {
-        try {
-            if (dataStore.isEmpty()) {
-                context.response().setStatusCode(404).end("No data to delete");
-            } else {
-                dataStore.clear();
-                context.response().setStatusCode(204).end();
-            }
+
+            databaseService.deleteData(id).onComplete(ar -> {
+                if (ar.succeeded()) {
+                    context.response().setStatusCode(200).end("Data deleted");
+                } else {
+                    context.response().setStatusCode(404).end(ar.cause().getMessage());
+                }
+            });
         } catch (Exception e) {
             context.response().setStatusCode(500).end(e.getMessage());
         }
     }
 
+    private void deleteAllData(RoutingContext context) {
+        try {
+            databaseService.deleteAllData().onComplete(ar -> {
+                if (ar.succeeded()) {
+                    context.response().setStatusCode(200).end("All data deleted");
+                } else {
+                    context.response().setStatusCode(500).end(ar.cause().getMessage());
+                }
+            });
+        } catch (Exception e) {
+            context.response().setStatusCode(500).end(e.getMessage());
+        }
+    }
 
     public static void main(String[] args) {
         Vertx.vertx().deployVerticle(new MainVerticle());
